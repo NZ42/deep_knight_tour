@@ -26,7 +26,7 @@ class ReplayMemory(object):
         batch = random.sample(self.memory, batch_size)
         return batch
 
-class DQN(nn.Module):
+class KnightDQN(nn.Module):
     def __init__(self, h, w):
         super(DQN, self).__init__()
         self.h = h
@@ -46,9 +46,10 @@ class DQN(nn.Module):
 
 
 class KnightAgent(object):
-    def __init__(self, world):
+    def __init__(self, world, batch_size, gamma, eps_start, eps_end,):
         self.world = world
         self.cumulative_reward = 0
+        self.policy_net = KnightDQN(self.world.shape[0], self.world.shape[1])
     
     def (self, hidden_layers):
 
