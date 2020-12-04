@@ -3,6 +3,7 @@
 import torch
 import torch.nn as nn
 import random
+from itertools import count
 from collections import namedtuple
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -49,7 +50,7 @@ class KnightDQN(nn.Module):
 
 
 class KnightAgent(object):
-    def __init__(self, world, batch_size, gamma, eps_start, steps_before_end, eps_end, memory_size, optim):
+    def __init__(self, world, batch_size, gamma, target_update, eps_start, steps_before_end, eps_end, memory_size, optim):
         self.world = world
         self.state = self.world.get_state_matrix()
         self.batch_size = batch_size
@@ -58,14 +59,14 @@ class KnightAgent(object):
         self.eps_start = eps_start
         self.steps_before_end = steps_before_end
         self.eps_end = eps_end
-
-        self.cumulative_reward = 0
+        self.target_update = target_update
         self.policy_net = KnightDQN(self.world.shape[0], self.world.shape[1]).to(device)
         self.target_net = KnightDQN(self.world.shape[0], self.world.shape[1]).to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
         self.optimizer = optim(self.policy_net.parameters())
         self.memory = ReplayMemory(memory_size)
+        self.episode_duration = []
 
     def choose_action(self):
         #epsilon greedy with epsilon annealed linaerly from self.eps_start to self.eps_end over self.steps_before_end, then self.eps_end
@@ -115,6 +116,28 @@ class KnightAgent(object):
         
         self.optimizer.step()
 
+    def learn(self, n_episodes):
+        for episode in range(n_episodes):
+            self.world.reset()
+            self.state = self.world.get_state_matrix()
+            for t in count():
+                action = self.choose_action()
+                old_state, reward, terminal, self.state = self.world.move(action.item())
+                reward = torch.tensor([reward], device=device)
+
+                self.memory.push_transition(old_state, action, self.state, reward)
+
+                self.optimize()
+
+                if terminal:
+                    self.episode_duration.append(t + 1)
+                    break
+        
+        if episode % self.target_update == 0:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+        
+        print(f"Training complete, last episode duration: {self.episode_duration[-1]}")
+        return self.episode_duration
 
 
     

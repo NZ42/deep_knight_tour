@@ -30,16 +30,17 @@ class KnightWorld(object):
         return matrix
 
     def move(self, action):
+        old_state = self.state
         self.state = self.state + self.action_list[action]
 
         if any(self.state > self.shape) or any(self.state < torch.tensor([0, 0])):
-            return (None, 0, True)
+            return (old_state, 0, True, None)
 
         for obstacle in self.obstacles:
             if self.state == obstacle:
-                return (None, 0, True)
+                return (old_state, 0, True, None)
         
-        return (self.state, 1, False)
+        return (old_state, 1, False, self.state)
     
     def reset(self):
         self.state = self.start
