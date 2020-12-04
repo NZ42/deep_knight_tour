@@ -33,11 +33,11 @@ class KnightWorld(object):
         self.state = self.state + self.action_list[action]
 
         if any(self.state > self.shape) or any(self.state < torch.tensor([0, 0])):
-            return (self.state, 0, True)
+            return (None, 0, True)
 
         for obstacle in self.obstacles:
             if self.state == obstacle:
-                return (self.state, 0, True)
+                return (None, 0, True)
         
         return (self.state, 1, False)
     
