@@ -7,7 +7,8 @@ from itertools import count
 from collections import namedtuple
 from knightworld import KnightWorld
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
@@ -38,6 +39,7 @@ class KnightDQN(nn.Module):
         self.w = w
         self.conv1 = nn.Conv2d(1, 8, kernel_size=5, stride=1)
         self.bn1 = nn.BatchNorm2d(8)
+        self.act = nn.ReLU()
         
         def conv2d_size_out(size, kernel_size = 5, stride = 1):
             return (size - (kernel_size - 1) - 1) // stride  + 1
@@ -46,8 +48,9 @@ class KnightDQN(nn.Module):
         self.head = nn.Linear(linear_input_size, 8)
     
     def forward(self, x):
-        x = nn.ReLU(self.bn1(self.conv1(x)))
-        return self.head(x.view(x.shape(0), -1))
+        x = self.bn1(self.conv1(x))
+        x = self.act(x)
+        return self.head(x.view(x.shape[0], -1))
 
 
 class KnightAgent(object):
@@ -68,6 +71,7 @@ class KnightAgent(object):
         self.optimizer = optim(self.policy_net.parameters())
         self.memory = ReplayMemory(memory_size)
         self.episode_duration = []
+        self.episode_duration_log = []
 
     def choose_action(self):
         #epsilon greedy with epsilon annealed linaerly from self.eps_start to self.eps_end over self.steps_before_end, then self.eps_end
@@ -81,9 +85,10 @@ class KnightAgent(object):
         self.steps_done += 1
 
         if sample < eps:
-            return torch.tensor([[random.randrange(8)]], device=device, dtype=torch.long)
+            return torch.tensor([random.randrange(8)], device=device)
         else:
-            return self.policy_net(self.state)
+            state_for_nn = self.state.unsqueeze(0).unsqueeze(0)
+            return self.policy_net(state_for_nn).max(1)[1]
 
     def optimize(self):
         if self.memory.length() < self.batch_size:
@@ -93,22 +98,24 @@ class KnightAgent(object):
         batch = Transition(*zip(*transitions))
 
         non_terminal_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=device, dtype=torch.bool)
-        non_terminal_next_states = torch.cat([s for s in batch.next_state if s is not None])
+        non_terminal_next_states = torch.stack([s for s in batch.next_state if s is not None]).unsqueeze_(1)
         
-        state_batch = torch.stack(batch.state)
+        state_batch = torch.stack(batch.state).unsqueeze_(1)
         action_batch = torch.stack(batch.action)
-        reward_batch = torch.cat(batch.reward)
+        reward_batch = torch.cat(batch.reward).unsqueeze_(1)
 
-        state_q_values = self.policy_net(state_batch).gather(1, action_batch)
+        state_q_values = self.policy_net(state_batch)
+        state_q_values = state_q_values.gather(1, action_batch)
         
         #q value of 0 if state is terminal
         next_state_q_values = torch.zeros(self.batch_size, device=device)
         next_state_q_values[non_terminal_mask] = self.target_net(non_terminal_next_states).max(1)[0].detach()
+        next_state_q_values = next_state_q_values.unsqueeze(1)
 
         expected_state_q_values = (next_state_q_values * self.gamma) + reward_batch
 
         #using Huber loss as in DQN paper
-        loss = torch.nn.SmoothL1Loss(state_q_values, expected_state_q_values.unsqueeze(1))
+        loss = torch.nn.functional.smooth_l1_loss(state_q_values, expected_state_q_values)
         
         self.optimizer.zero_grad()
         loss.backward()
@@ -135,7 +142,10 @@ class KnightAgent(object):
                     self.episode_duration.append(t + 1)
                     break
             
-            print(f"Episode {episode + 1}, duration {self.episode_duration[-1]}")
+            #print(f"Episode {episode + 1}, duration {self.episode_duration[-1]}")
+
+            if episode % 100 == 0:
+                self.episode_duration_log.append(self.episode_duration[-1])
 
             if episode % self.target_update == 0:
                 self.target_net.load_state_dict(self.policy_net.state_dict())
@@ -145,4 +155,4 @@ class KnightAgent(object):
         print(f"Training complete, last episode duration: {self.episode_duration[-1]}")
         if self.episode_duration[-1] == (self.world.shape[0] * self.world.shape[1]):
             print(f"Knight Tour solved for board of shape {self.world.shape}!")
-        return self.episode_duration
+        return self.episode_duration_log

@@ -1,6 +1,7 @@
 import torch
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #actions, ordered clockwise
 NNE = torch.tensor([1, 0, 0, 0, 0, 0, 0, 0], dtype=torch.bool)
@@ -25,7 +26,7 @@ class KnightWorld(object):
         return self.state
 
     def get_state_matrix(self):
-        matrix = torch.zeros(self.shape, device=device, dtype=torch.int8).detach()
+        matrix = torch.zeros(self.shape, device=device).detach()
         matrix.T[self.state[0], self.state[1]] = 1
         for obstacle in self.obstacles:
             matrix.T[obstacle[0], obstacle[1]] = -1
