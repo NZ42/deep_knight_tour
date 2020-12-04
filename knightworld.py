@@ -1,5 +1,7 @@
 import torch
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 #actions, ordered clockwise
 NNE = torch.tensor([1, 0, 0, 0, 0, 0, 0, 0], dtype=torch.bool)
 NEE = torch.tensor([0, 1, 0, 0, 0, 0, 0, 0], dtype=torch.bool)
@@ -11,19 +13,19 @@ NWW = torch.tensor([0, 0, 0, 0, 0, 0, 1, 0], dtype=torch.bool)
 NNW = torch.tensor([0, 0, 0, 0, 0, 0, 0, 1], dtype=torch.bool)
 
 class KnightWorld(object):
-    def __init___(self, shape, start):
+    def __init__(self, shape, start):
         self.shape = shape
         self.start = start
-        self.obstacles = torch.tensor([])
-        self.state = self.start
+        self.obstacles = torch.tensor([]).detach()
+        self.state = torch.tensor([self.start]).detach()
         #actions ordered clock-wise: NNE, NEE, SEE, SSE, SSW, SWW, NWW, NNW
-        self.action_list = torch.tensor([[1, -2], [2, -1], [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2]])
+        self.action_list = torch.tensor([[1, -2], [2, -1], [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2]]).detach()
 
     def get_state(self):
         return self.state
 
     def get_state_matrix(self):
-        matrix = torch.zeros(self.shape, dtype=torch.int8)
+        matrix = torch.zeros(self.shape, device=device, dtype=torch.int8)
         matrix[self.state] = 1
         for obstacle in self.obstacles:
             matrix[obstacle] = -1
@@ -43,5 +45,4 @@ class KnightWorld(object):
         return (old_state, 1, False, self.state)
     
     def reset(self):
-        self.state = self.start
-        self.obstacles = torch.tensor([])
+        self.__init__(self.shape, self.start)
