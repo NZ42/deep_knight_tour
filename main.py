@@ -2,8 +2,8 @@ import torch
 from agent import KnightAgent
 from knightworld import KnightWorld
 
-BOARD_SHAPE = (8,8)
-KNIGHT_START = (3,3)
+BOARD_SHAPE = (8, 8)
+KNIGHT_START = (1, 2)
 BATCH_SIZE = 32
 GAMMA = 0.99
 EPS_START = 1

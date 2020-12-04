@@ -86,16 +86,17 @@ class KnightAgent(object):
             return self.policy_net(self.state)
 
     def optimize(self):
-        if len(self.memory) < self.batch_size:
+        if self.memory.length() < self.batch_size:
             return
+            
         transitions = self.memory.sample_batch(self.batch_size)
         batch = Transition(*zip(*transitions))
 
         non_terminal_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=device, dtype=torch.bool)
         non_terminal_next_states = torch.cat([s for s in batch.next_state if s is not None])
         
-        state_batch = torch.cat(batch.state)
-        action_batch = torch.cat(batch.action)
+        state_batch = torch.stack(batch.state)
+        action_batch = torch.stack(batch.action)
         reward_batch = torch.cat(batch.reward)
 
         state_q_values = self.policy_net(state_batch).gather(1, action_batch)
@@ -133,9 +134,13 @@ class KnightAgent(object):
                 if terminal:
                     self.episode_duration.append(t + 1)
                     break
+            
+            print(f"Episode {episode + 1}, duration {self.episode_duration[-1]}")
+
+            if episode % self.target_update == 0:
+                self.target_net.load_state_dict(self.policy_net.state_dict())
+
         
-        if episode % self.target_update == 0:
-            self.target_net.load_state_dict(self.policy_net.state_dict())
         
         print(f"Training complete, last episode duration: {self.episode_duration[-1]}")
         if self.episode_duration[-1] == (self.world.shape[0] * self.world.shape[1]):
