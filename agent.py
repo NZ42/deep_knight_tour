@@ -5,6 +5,7 @@ import torch.nn as nn
 import random
 from itertools import count
 from collections import namedtuple
+from knightworld import KnightWorld
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -137,8 +138,6 @@ class KnightAgent(object):
             self.target_net.load_state_dict(self.policy_net.state_dict())
         
         print(f"Training complete, last episode duration: {self.episode_duration[-1]}")
+        if self.episode_duration[-1] == (self.world.shape[0] * self.world.shape[1]):
+            print(f"Knight Tour solved for board of shape {self.world.shape}!")
         return self.episode_duration
-
-
-    
-
