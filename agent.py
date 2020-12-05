@@ -3,12 +3,13 @@
 import torch
 import torch.nn as nn
 import random
+import matplotlib
+import matplotlib.pyplot as plt
 from itertools import count
 from collections import namedtuple
 from knightworld import KnightWorld
 
-device = "cpu"
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
 
@@ -37,19 +38,22 @@ class KnightDQN(nn.Module):
         super(KnightDQN, self).__init__()
         self.h = h
         self.w = w
-        self.conv1 = nn.Conv2d(1, 8, kernel_size=5, stride=1)
+        self.conv1 = nn.Conv2d(1, 8, kernel_size=2, stride=1)
         self.bn1 = nn.BatchNorm2d(8)
-        self.act = nn.ReLU()
-        
-        def conv2d_size_out(size, kernel_size = 5, stride = 1):
+        self.conv2 = nn.Conv2d(8, 32, kernel_size=2, stride=1)
+        self.bn2 = nn.BatchNorm2d(32)
+
+        def conv2d_size_out(size, kernel_size = 2, stride = 1):
             return (size - (kernel_size - 1) - 1) // stride  + 1
 
-        linear_input_size = conv2d_size_out(self.h) * conv2d_size_out(self.w) * 8
+        linear_input_size = conv2d_size_out(conv2d_size_out(self.h)) * conv2d_size_out(conv2d_size_out(self.w)) * 32
         self.head = nn.Linear(linear_input_size, 8)
     
     def forward(self, x):
         x = self.bn1(self.conv1(x))
-        x = self.act(x)
+        x = nn.functional.relu(x)
+        x = self.bn2(self.conv2(x))
+        x = nn.functional.relu(x)
         return self.head(x.view(x.shape[0], -1))
 
 
@@ -71,7 +75,6 @@ class KnightAgent(object):
         self.optimizer = optim(self.policy_net.parameters())
         self.memory = ReplayMemory(memory_size)
         self.episode_duration = []
-        self.episode_duration_log = []
 
     def choose_action(self):
         #epsilon greedy with epsilon annealed linaerly from self.eps_start to self.eps_end over self.steps_before_end, then self.eps_end
@@ -125,6 +128,24 @@ class KnightAgent(object):
         
         self.optimizer.step()
 
+    def plot_durations(self):
+        plt.figure(2)
+        plt.clf()
+        durations_t = torch.tensor(self.episode_duration, dtype=torch.float)
+        plt.title('Training...')
+        plt.xlabel('Episode')
+        plt.ylabel('Duration')
+        plt.plot(durations_t.numpy())
+        # Take 100 episode averages and plot them too
+        if len(durations_t) >= 100:
+            means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
+            means = torch.cat((torch.zeros(99), means))
+            plt.plot(means.numpy())
+
+        plt.pause(0.001)  # pause a bit so that plots are updated
+
+
+
     def learn(self, n_episodes):
         for episode in range(n_episodes):
             self.world.reset()
@@ -139,20 +160,12 @@ class KnightAgent(object):
                 self.optimize()
 
                 if terminal:
+                    self.plot_durations()
                     self.episode_duration.append(t + 1)
                     break
             
-            #print(f"Episode {episode + 1}, duration {self.episode_duration[-1]}")
-
-            if episode % 100 == 0:
-                self.episode_duration_log.append(self.episode_duration[-1])
 
             if episode % self.target_update == 0:
                 self.target_net.load_state_dict(self.policy_net.state_dict())
 
-        
-        
-        print(f"Training complete, last episode duration: {self.episode_duration[-1]}")
-        if self.episode_duration[-1] == (self.world.shape[0] * self.world.shape[1]):
-            print(f"Knight Tour solved for board of shape {self.world.shape}!")
-        return self.episode_duration_log
+        return self.episode_duration

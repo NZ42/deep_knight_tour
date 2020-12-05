@@ -1,7 +1,7 @@
 import torch
 
-device = "cpu"
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #actions, ordered clockwise
 NNE = torch.tensor([1, 0, 0, 0, 0, 0, 0, 0], dtype=torch.bool)
