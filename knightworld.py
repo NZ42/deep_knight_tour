@@ -26,15 +26,11 @@ class KnightWorld(object):
         return self.state
 
     def get_state_matrix(self):
-        matrix_state = torch.zeros(self.shape, device=device).detach()
-        matrix_state.T[self.state[0], self.state[1]] = 1
-        matrix_obstacles = torch.zeros(self.shape, device=device).detach()
+        matrix = torch.zeros(self.shape, device=device).detach()
+        matrix.T[self.state[0], self.state[1]] = 1
         for obstacle in self.obstacles:
-            matrix_obstacles.T[obstacle[0], obstacle[1]] = -1
-        
-        matrix_to_occupy = ((matrix_state.T + matrix_obstacles.T) == 0).to(dtype=torch.float)
-
-        return torch.stack([matrix_state, matrix_obstacles, matrix_to_occupy])
+            matrix.T[obstacle[0], obstacle[1]] = -1
+        return matrix
 
     def move(self, action):
         old_state = self.get_state_matrix()
@@ -42,11 +38,11 @@ class KnightWorld(object):
         self.state = self.state + self.action_list[action]
 
         if any(self.state >= torch.as_tensor(self.shape)) or any(self.state < torch.tensor([0, 0])):
-            return (old_state, -100, True, None)
+            return (old_state, 0, True, None)
 
         for obstacle in self.obstacles:
             if all(self.state == obstacle):
-                return (old_state, -100, True, None)
+                return (old_state, 0, True, None)
         
         return (old_state, 1, False, self.get_state_matrix())
     

@@ -38,22 +38,21 @@ class KnightDQN(nn.Module):
         super(KnightDQN, self).__init__()
         self.h = h
         self.w = w
-        self.conv1 = nn.Conv2d(3, 8, kernel_size=1, stride=1)
+        self.conv1 = nn.Conv2d(1, 8, kernel_size=2, stride=1)
         self.bn1 = nn.BatchNorm2d(8)
-        
-        def conv2d_size_out(size, kernel_size = 1, stride = 1):
+        self.conv2 = nn.Conv2d(8, 32, kernel_size=2, stride=1)
+        self.bn2 = nn.BatchNorm2d(32)
+
+        def conv2d_size_out(size, kernel_size = 2, stride = 1):
             return (size - (kernel_size - 1) - 1) // stride  + 1
 
-        linear_input_size = conv2d_size_out(self.h) * conv2d_size_out(self.w) * 8
-        self.fn1 = nn.Linear(linear_input_size, 256)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.head = nn.Linear(256, 8)
+        linear_input_size = conv2d_size_out(conv2d_size_out(self.h)) * conv2d_size_out(conv2d_size_out(self.w)) * 32
+        self.head = nn.Linear(linear_input_size, 8)
     
     def forward(self, x):
-        x = self.conv1(x)
+        x = self.bn1(self.conv1(x))
         x = nn.functional.relu(x)
-        x = self.fn1(x.view(x.shape[0], -1))
-        #x = self.bn2(x)
+        x = self.bn2(self.conv2(x))
         x = nn.functional.relu(x)
         return self.head(x.view(x.shape[0], -1))
 
@@ -91,7 +90,7 @@ class KnightAgent(object):
         if sample < eps:
             return torch.tensor([random.randrange(8)], device=device)
         else:
-            state_for_nn = self.state.unsqueeze(0)
+            state_for_nn = self.state.unsqueeze(0).unsqueeze(0)
             return self.policy_net(state_for_nn).max(1)[1]
 
     def optimize(self):
@@ -102,9 +101,9 @@ class KnightAgent(object):
         batch = Transition(*zip(*transitions))
 
         non_terminal_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=device, dtype=torch.bool)
-        non_terminal_next_states = torch.stack([s for s in batch.next_state if s is not None])
+        non_terminal_next_states = torch.stack([s for s in batch.next_state if s is not None]).unsqueeze_(1)
         
-        state_batch = torch.stack(batch.state)
+        state_batch = torch.stack(batch.state).unsqueeze_(1)
         action_batch = torch.stack(batch.action)
         reward_batch = torch.cat(batch.reward).unsqueeze_(1)
 
@@ -124,8 +123,8 @@ class KnightAgent(object):
         self.optimizer.zero_grad()
         loss.backward()
         
-        #for param in self.policy_net.parameters():
-        #    param.grad.data.clamp_(-1, 1)
+        for param in self.policy_net.parameters():
+            param.grad.data.clamp_(-1, 1)
         
         self.optimizer.step()
 
