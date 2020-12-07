@@ -46,9 +46,9 @@ class KnightWorld(object):
         if any(self.state >= torch.as_tensor(self.shape)) or any(self.state < torch.tensor([0, 0])):
             return (old_state, -100, True, None)
 
-        for obstacle in self.obstacles:
-            if all(self.state == obstacle):
-                return (old_state, -100, True, None)
+        if self.state_matrix[self.state[0], self.state[1]] == -1:
+            return (old_state, -100, True, None)
+       
 
         self.state_matrix[self.state[0], self.state[1]] = 1
         state = self.get_data()
